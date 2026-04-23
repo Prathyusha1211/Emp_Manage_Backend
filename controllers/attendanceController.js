@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Attendance = require('../models/Attendance');
 const Worker = require('../models/Worker');
 
@@ -79,6 +80,90 @@ exports.markAttendance = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
+
+exports.getWorkersByDate = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { date } = req.query || req.body;
+
+        if (!date) {
+            return res.status(400).json({
+                message: 'Date is required'
+            });
+        }
+
+        // 🕒 Convert IST date → UTC range
+        const inputDate = new Date(date);
+
+        // Start of IST day
+        inputDate.setHours(0, 0, 0, 0);
+
+        // Convert IST → UTC
+        const start = new Date(inputDate.getTime() - (5.5 * 60 * 60 * 1000));
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+
+        const result = await Worker.aggregate([
+            {
+                // 🔥 Fix: convert userId to ObjectId
+                $match: {
+                    userId: new mongoose.Types.ObjectId(userId)
+                }
+            },
+            {
+                $lookup: {
+                    from: 'attendances',
+                    let: { workerId: '$_id' },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ['$workerId', '$$workerId'] },
+                                        { $gte: ['$date', start] },
+                                        { $lt: ['$date', end] }
+                                    ]
+                                }
+                            }
+                        }
+                    ],
+                    as: 'attendance'
+                }
+            },
+            {
+                $addFields: {
+                    // attendance: { $arrayElemAt: ['$attendance', 0] },
+                    attendanceStatus: {
+                        $ifNull: [
+                            { $arrayElemAt: ['$attendance.status', 0] },
+                            null
+                        ]
+                    }
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    wage: 1,
+                    attendanceStatus: 1,
+                    // attendance: 1
+                }
+            }
+        ]);
+
+        return res.status(200).json({
+            message: 'Workers fetched successfully',
+            date,
+            data: result
+        });
+
+    } catch (error) {
+        return res.status(500).json({
             message: 'Server error',
             error: error.message
         });
