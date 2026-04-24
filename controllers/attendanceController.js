@@ -13,6 +13,7 @@ exports.markAttendance = async (req, res) => {
                 message: 'workerId, date, and status are required'
             });
         }
+        console.log("got details");
 
         // Validate status
         if (!['present', 'absent'].includes(status)) {
@@ -29,11 +30,15 @@ exports.markAttendance = async (req, res) => {
             });
         }
 
+        console.log("worker found");
+
         if (worker.userId.toString() !== userId) {
             return res.status(403).json({
                 message: 'Unauthorized: Worker does not belong to this user'
             });
         }
+
+        console.log("user can change worker");
 
         // Check if attendance already marked for this date
         const attendanceDate = new Date(date);
@@ -63,6 +68,7 @@ exports.markAttendance = async (req, res) => {
                 attendance: existingAttendance
             });
         }
+        console.log("not already exits")
 
         // Create attendance record
         const attendance = new Attendance({
@@ -73,6 +79,8 @@ exports.markAttendance = async (req, res) => {
         });
 
         await attendance.save();
+
+        console.log("created new record")
 
         res.status(201).json({
             message: 'Attendance marked successfully',
