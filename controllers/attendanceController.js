@@ -7,94 +7,91 @@ exports.markAttendance = async (req, res) => {
         const userId = req.userId;
         const { workerId, date, status } = req.body;
 
-        // 🔍 Validate userId exists
+        // ✅ Step 1: Validate all inputs exist
         if (!userId) {
             return res.status(401).json({
-                message: 'Unauthorized: User not authenticated'
+                message: 'Unauthorized - user not authenticated'
             });
         }
 
-        // Validate required fields
         if (!workerId || !date || !status) {
             return res.status(400).json({
-                message: 'workerId, date, and status are required'
+                message: 'Missing required fields: workerId, date, status'
             });
         }
 
-        // 🔍 Validate workerId is a valid MongoDB ObjectId
+        // ✅ Step 2: Validate formats
         if (!mongoose.Types.ObjectId.isValid(workerId)) {
             return res.status(400).json({
                 message: 'Invalid workerId format'
             });
         }
 
-        // 🔍 Validate userId is a valid MongoDB ObjectId
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return res.status(401).json({
                 message: 'Invalid userId format'
             });
         }
 
-        // 🔍 Validate date is a valid date
-        const attendanceDate = new Date(date);
-        if (isNaN(attendanceDate.getTime())) {
-            return res.status(400).json({
-                message: 'Invalid date format. Use YYYY-MM-DD or ISO format'
-            });
-        }
-
-        // Validate status
         if (!['present', 'absent'].includes(status)) {
             return res.status(400).json({
-                message: 'Status must be either "present" or "absent"'
+                message: 'Invalid status - must be "present" or "absent"'
             });
         }
 
-        console.log("✓ All validations passed");
-        console.log("✓ UserId:", userId, "WorkerId:", workerId);
+        // ✅ Step 3: Parse and validate date
+        let attendanceDate = new Date(date);
+        if (isNaN(attendanceDate.getTime())) {
+            return res.status(400).json({
+                message: 'Invalid date format'
+            });
+        }
 
-        // Check if worker exists and belongs to the user
-        const worker = await Worker.findById(workerId);
+        // Convert to midnight UTC
+        attendanceDate = new Date(Date.UTC(
+            attendanceDate.getUTCFullYear(),
+            attendanceDate.getUTCMonth(),
+            attendanceDate.getUTCDate(),
+            0, 0, 0, 0
+        ));
+
+        // ✅ Step 4: Convert IDs to ObjectId ONCE and reuse
+        const workerObjectId = new mongoose.Types.ObjectId(workerId);
+        const userObjectId = new mongoose.Types.ObjectId(userId);
+
+        // ✅ Step 5: Verify worker exists and belongs to user
+        const worker = await Worker.findById(workerObjectId);
         if (!worker) {
             return res.status(404).json({
                 message: 'Worker not found'
             });
         }
 
-        console.log("✓ Worker found:", worker.name);
-
-        if (worker.userId.toString() !== userId.toString()) {
+        if (worker.userId.toString() !== userObjectId.toString()) {
             return res.status(403).json({
-                message: 'Unauthorized: Worker does not belong to this user'
+                message: 'Unauthorized - worker does not belong to this user'
             });
         }
 
-        console.log("✓ User authorization passed");
-
-        // Check if attendance already marked for this date
-        attendanceDate.setHours(0, 0, 0, 0);
+        // ✅ Step 6: Check if attendance exists for this worker on this date
         const nextDay = new Date(attendanceDate);
-        nextDay.setDate(nextDay.getDate() + 1);
+        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
 
-        const workerIdObj = new mongoose.Types.ObjectId(workerId);
-        const userIdObj = new mongoose.Types.ObjectId(userId);
-
-        console.log("✓ ObjectId conversion - workerId:", workerIdObj, "userId:", userIdObj);
 
         const existingAttendance = await Attendance.findOne({
-            workerId: workerIdObj,
+            workerId: workerObjectId,
             date: { $gte: attendanceDate, $lt: nextDay }
         });
 
         if (existingAttendance) {
-            // 🔍 If same status → no change
+
             if (existingAttendance.status === status) {
                 return res.status(200).json({
-                    message: 'Attendance already marked with same status'
+                    message: 'Attendance already marked with same status',
+                    attendance: existingAttendance
                 });
             }
 
-            // 🔄 If status changed → update
             existingAttendance.status = status;
             await existingAttendance.save();
 
@@ -104,32 +101,57 @@ exports.markAttendance = async (req, res) => {
             });
         }
 
-        console.log("✓ Creating new attendance record");
 
-        // Create attendance record
-        const attendance = new Attendance({
-            workerId: workerIdObj,
-            userId: userIdObj,
+        // ✅ Step 7: Create new attendance record
+        const newAttendance = new Attendance({
+            workerId: workerObjectId,
+            userId: userObjectId,
             date: attendanceDate,
-            status
+            status: status
         });
 
-        console.log("✓ Attendance object created:", attendance);
+        await newAttendance.save();
 
-        await attendance.save();
 
-        console.log("✓ Attendance record created successfully");
-
-        res.status(201).json({
+        return res.status(201).json({
             message: 'Attendance marked successfully',
-            attendance
+            attendance: newAttendance
         });
+
     } catch (error) {
-        console.error('❌ Error in markAttendance:', error);
-        res.status(500).json({
+        console.error('❌ Error in markAttendance:', error.message);
+        console.error('Stack:', error.stack);
+
+        // Handle E11000 duplicate key error
+        if (error.code === 11000) {
+            console.error('🚨 E11000 Error - Duplicate key detected');
+            console.error('Key pattern:', error.keyPattern);
+            console.error('Key value:', error.keyValue);
+            
+            return res.status(409).json({
+                message: 'E11000 Duplicate Key Error - This indicates corrupted data in database',
+                error: 'Please contact administrator to clean database',
+                details: {
+                    keyPattern: error.keyPattern,
+                    keyValue: error.keyValue
+                }
+            });
+        }
+
+        // Handle validation errors
+        if (error.name === 'ValidationError') {
+            const errors = Object.values(error.errors).map(e => e.message);
+            console.error('❌ Validation errors:', errors);
+            return res.status(400).json({
+                message: 'Validation failed',
+                errors
+            });
+        }
+
+        // Generic server error
+        return res.status(500).json({
             message: 'Server error',
-            error: error.message,
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            error: error.message
         });
     }
 };
