@@ -99,6 +99,41 @@ const options = {
               description: 'Created at timestamp'
             }
           }
+        },
+        Bill: {
+          type: 'object',
+          required: ['billData', 'name', 'generatedDate', 'date'],
+          properties: {
+            _id: {
+              type: 'string',
+              description: 'Bill ID'
+            },
+            userId: {
+              type: 'string',
+              description: 'User ID who owns this bill'
+            },
+            billData: {
+              type: 'object',
+              description: 'Bill data object'
+            },
+            name: {
+              type: 'string',
+              description: 'Bill name'
+            },
+            generatedDate: {
+              type: 'string',
+              description: 'Generated date in DD/MM/YYYY format'
+            },
+            date: {
+              type: 'string',
+              description: 'Date in DD/MM/YYYY format'
+            },
+            createdAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Created at timestamp'
+            }
+          }
         }
       }
     }

@@ -7,6 +7,7 @@ const swaggerSpec = require('./swagger');
 const authRoutes = require('./routes/authRoutes');
 const workerRoutes = require('./routes/workerRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
+const billRoutes = require('./routes/billRoutes');
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ mongoose.connect(process.env.MONGO_URI, { useNewUrlParser: true, useUnifiedTopol
 app.use('/user', authRoutes);
 app.use('/worker', workerRoutes);
 app.use('/attendance', attendanceRoutes);
+app.use('/bill', billRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
