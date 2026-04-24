@@ -7,6 +7,13 @@ exports.markAttendance = async (req, res) => {
         const userId = req.userId;
         const { workerId, date, status } = req.body;
 
+        // 🔍 Validate userId exists
+        if (!userId) {
+            return res.status(401).json({
+                message: 'Unauthorized: User not authenticated'
+            });
+        }
+
         // Validate required fields
         if (!workerId || !date || !status) {
             return res.status(400).json({
@@ -18,6 +25,13 @@ exports.markAttendance = async (req, res) => {
         if (!mongoose.Types.ObjectId.isValid(workerId)) {
             return res.status(400).json({
                 message: 'Invalid workerId format'
+            });
+        }
+
+        // 🔍 Validate userId is a valid MongoDB ObjectId
+        if (!mongoose.Types.ObjectId.isValid(userId)) {
+            return res.status(401).json({
+                message: 'Invalid userId format'
             });
         }
 
@@ -36,7 +50,8 @@ exports.markAttendance = async (req, res) => {
             });
         }
 
-        console.log("✓ Validation passed");
+        console.log("✓ All validations passed");
+        console.log("✓ UserId:", userId, "WorkerId:", workerId);
 
         // Check if worker exists and belongs to the user
         const worker = await Worker.findById(workerId);
@@ -46,9 +61,9 @@ exports.markAttendance = async (req, res) => {
             });
         }
 
-        console.log("✓ Worker found");
+        console.log("✓ Worker found:", worker.name);
 
-        if (worker.userId.toString() !== userId) {
+        if (worker.userId.toString() !== userId.toString()) {
             return res.status(403).json({
                 message: 'Unauthorized: Worker does not belong to this user'
             });
@@ -61,8 +76,13 @@ exports.markAttendance = async (req, res) => {
         const nextDay = new Date(attendanceDate);
         nextDay.setDate(nextDay.getDate() + 1);
 
+        const workerIdObj = new mongoose.Types.ObjectId(workerId);
+        const userIdObj = new mongoose.Types.ObjectId(userId);
+
+        console.log("✓ ObjectId conversion - workerId:", workerIdObj, "userId:", userIdObj);
+
         const existingAttendance = await Attendance.findOne({
-            worker: new mongoose.Types.ObjectId(workerId),
+            workerId: workerIdObj,
             date: { $gte: attendanceDate, $lt: nextDay }
         });
 
@@ -88,11 +108,13 @@ exports.markAttendance = async (req, res) => {
 
         // Create attendance record
         const attendance = new Attendance({
-            worker: new mongoose.Types.ObjectId(workerId),
-            userId: new mongoose.Types.ObjectId(userId),
+            workerId: workerIdObj,
+            userId: userIdObj,
             date: attendanceDate,
             status
         });
+
+        console.log("✓ Attendance object created:", attendance);
 
         await attendance.save();
 
@@ -150,7 +172,7 @@ exports.getWorkersByDate = async (req, res) => {
                             $match: {
                                 $expr: {
                                     $and: [
-                                        { $eq: ['$worker', '$$workerId'] },
+                                        { $eq: ['$workerId', '$$workerId'] },
                                         { $gte: ['$date', start] },
                                         { $lt: ['$date', end] }
                                     ]
