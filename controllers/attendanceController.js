@@ -2,52 +2,55 @@ const mongoose = require("mongoose");
 const Attendance = require('../models/Attendance');
 const Worker = require('../models/Worker');
 
+
 exports.markAttendance = async (req, res) => {
     try {
         const userId = req.userId;
         const { workerId, date, status } = req.body;
 
-        // ✅ Step 1: Validate all inputs exist
+        // ✅ Step 1: Validate inputs
         if (!userId) {
             return res.status(401).json({
-                message: 'Unauthorized - user not authenticated'
+                message: "Unauthorized - user not authenticated"
             });
         }
 
         if (!workerId || !date || !status) {
             return res.status(400).json({
-                message: 'Missing required fields: workerId, date, status'
+                message: "Missing required fields: workerId, date, status"
             });
         }
 
-        // ✅ Step 2: Validate formats
+        // ✅ Step 2: Validate ObjectIds
         if (!mongoose.Types.ObjectId.isValid(workerId)) {
             return res.status(400).json({
-                message: 'Invalid workerId format'
+                message: "Invalid workerId format"
             });
         }
 
         if (!mongoose.Types.ObjectId.isValid(userId)) {
             return res.status(401).json({
-                message: 'Invalid userId format'
+                message: "Invalid userId format"
             });
         }
 
-        if (!['present', 'absent'].includes(status)) {
+        // ✅ Step 3: Validate status
+        if (!["present", "absent"].includes(status)) {
             return res.status(400).json({
                 message: 'Invalid status - must be "present" or "absent"'
             });
         }
 
-        // ✅ Step 3: Parse and validate date
+        // ✅ Step 4: Normalize date (VERY IMPORTANT)
         let attendanceDate = new Date(date);
+
         if (isNaN(attendanceDate.getTime())) {
             return res.status(400).json({
-                message: 'Invalid date format'
+                message: "Invalid date format"
             });
         }
 
-        // Convert to midnight UTC
+        // Convert to exact UTC midnight
         attendanceDate = new Date(Date.UTC(
             attendanceDate.getUTCFullYear(),
             attendanceDate.getUTCMonth(),
@@ -55,102 +58,63 @@ exports.markAttendance = async (req, res) => {
             0, 0, 0, 0
         ));
 
-        // ✅ Step 4: Convert IDs to ObjectId ONCE and reuse
+        // ✅ Step 5: Convert IDs
         const workerObjectId = new mongoose.Types.ObjectId(workerId);
         const userObjectId = new mongoose.Types.ObjectId(userId);
 
-        // ✅ Step 5: Verify worker exists and belongs to user
+        // ✅ Step 6: Verify worker ownership
         const worker = await Worker.findById(workerObjectId);
+
         if (!worker) {
             return res.status(404).json({
-                message: 'Worker not found'
+                message: "Worker not found"
             });
         }
 
         if (worker.userId.toString() !== userObjectId.toString()) {
             return res.status(403).json({
-                message: 'Unauthorized - worker does not belong to this user'
+                message: "Unauthorized - worker does not belong to this user"
             });
         }
 
-        // ✅ Step 6: Check if attendance exists for this worker on this date
-        const nextDay = new Date(attendanceDate);
-        nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-
-
-        const existingAttendance = await Attendance.findOne({
-            workerId: workerObjectId,
-            date: { $gte: attendanceDate, $lt: nextDay }
-        });
-
-        if (existingAttendance) {
-
-            if (existingAttendance.status === status) {
-                return res.status(200).json({
-                    message: 'Attendance already marked with same status',
-                    attendance: existingAttendance
-                });
+        // ✅ Step 7: Atomic upsert (NO DUPLICATES EVER)
+        const attendance = await Attendance.findOneAndUpdate(
+            {
+                workerId: workerObjectId,
+                date: attendanceDate
+            },
+            {
+                $set: {
+                    status,
+                    userId: userObjectId
+                }
+            },
+            {
+                new: true,      // return updated doc
+                upsert: true,   // create if not exists
+                setDefaultsOnInsert: true
             }
+        );
 
-            existingAttendance.status = status;
-            await existingAttendance.save();
-
-            return res.status(200).json({
-                message: 'Attendance updated successfully',
-                attendance: existingAttendance
-            });
-        }
-
-
-        // ✅ Step 7: Create new attendance record
-        const newAttendance = new Attendance({
-            workerId: workerObjectId,
-            userId: userObjectId,
-            date: attendanceDate,
-            status: status
-        });
-
-        await newAttendance.save();
-
-
-        return res.status(201).json({
-            message: 'Attendance marked successfully',
-            attendance: newAttendance
+        // ✅ Step 8: Response
+        return res.status(200).json({
+            message: "Attendance marked/updated successfully",
+            attendance
         });
 
     } catch (error) {
-        console.error('❌ Error in markAttendance:', error.message);
-        console.error('Stack:', error.stack);
+        console.error("❌ Error in markAttendance:", error.message);
 
-        // Handle E11000 duplicate key error
+        // 🔥 Handle duplicate key (just in case)
         if (error.code === 11000) {
-            console.error('🚨 E11000 Error - Duplicate key detected');
-            console.error('Key pattern:', error.keyPattern);
-            console.error('Key value:', error.keyValue);
-            
             return res.status(409).json({
-                message: 'E11000 Duplicate Key Error - This indicates corrupted data in database',
-                error: 'Please contact administrator to clean database',
-                details: {
-                    keyPattern: error.keyPattern,
-                    keyValue: error.keyValue
-                }
+                message: "Duplicate attendance detected (should not happen after fix)",
+                error: error.keyValue
             });
         }
 
-        // Handle validation errors
-        if (error.name === 'ValidationError') {
-            const errors = Object.values(error.errors).map(e => e.message);
-            console.error('❌ Validation errors:', errors);
-            return res.status(400).json({
-                message: 'Validation failed',
-                errors
-            });
-        }
-
-        // Generic server error
         return res.status(500).json({
-            message: 'Server error',
+            message: "Server error",
             error: error.message
         });
     }
