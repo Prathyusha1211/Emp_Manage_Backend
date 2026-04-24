@@ -68,3 +68,70 @@ exports.addWorkers = async (req, res) => {
         });
     }
 };
+
+exports.editWorker = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { workerId } = req.params;
+        const { name, wage } = req.body;
+
+        // 🔍 Step 1: Validate input
+        if (!name && !wage) {
+            return res.status(400).json({
+                message: 'At least one field (name or wage) is required'
+            });
+        }
+
+        // 🔍 Step 2: Check if worker exists and belongs to the user
+        const worker = await Worker.findById(workerId);
+
+        if (!worker) {
+            return res.status(404).json({
+                message: 'Worker not found'
+            });
+        }
+
+        if (worker.userId.toString() !== userId) {
+            return res.status(403).json({
+                message: 'Unauthorized to edit this worker'
+            });
+        }
+
+        // 🔍 Step 3: Check for duplicate name (if name is being updated)
+        if (name && name !== worker.name) {
+            const existingWorker = await Worker.findOne({
+                name,
+                userId,
+                _id: { $ne: workerId }
+            });
+
+            if (existingWorker) {
+                return res.status(400).json({
+                    message: 'Worker with this name already exists'
+                });
+            }
+        }
+
+        // ✅ Step 4: Update the worker
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (wage) updateData.wage = wage;
+
+        const updatedWorker = await Worker.findByIdAndUpdate(
+            workerId,
+            updateData,
+            { new: true, runValidators: true }
+        );
+
+        return res.status(200).json({
+            message: 'Worker updated successfully',
+            updatedWorker
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};

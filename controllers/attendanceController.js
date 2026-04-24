@@ -49,7 +49,7 @@ exports.markAttendance = async (req, res) => {
         if (existingAttendance) {
             // 🔍 If same status → no change
             if (existingAttendance.status === status) {
-                return res.status(400).json({
+                return res.status(200).json({
                     message: 'Attendance already marked with same status'
                 });
             }
