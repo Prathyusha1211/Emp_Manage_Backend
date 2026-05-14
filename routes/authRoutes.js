@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, login } = require('../controllers/authController');
+const { register, login, forgotPassword } = require('../controllers/authController');
 
 const router = express.Router();
 
@@ -89,5 +89,46 @@ router.post('/register', register);
  *         description: Server error
  */
 router.post('/login', login);
+
+/**
+ * @swagger
+ * /user/forgot-password:
+ *   post:
+ *     summary: Reset password using mobile number
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - mobile
+ *               - newPassword
+ *             properties:
+ *               mobile:
+ *                 type: string
+ *                 example: "9876543210"
+ *               newPassword:
+ *                 type: string
+ *                 example: "newPassword123"
+ *     responses:
+ *       200:
+ *         description: Password updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Mobile number and new password are required
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Server error
+ */
+router.post('/forgot-password', forgotPassword);
 
 module.exports = router;

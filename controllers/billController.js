@@ -94,3 +94,31 @@ exports.getBillById = async (req, res) => {
     });
   }
 };
+
+exports.deleteBill = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { deleteId } = req.params;
+
+    // Verify the bill exists and belongs to the user
+    const bill = await Bill.findOne({ _id: deleteId, userId });
+
+    if (!bill) {
+      return res.status(404).json({
+        message: 'Bill not found'
+      });
+    }
+
+    // Delete the bill
+    await Bill.deleteOne({ _id: deleteId, userId });
+
+    return res.status(200).json({
+      message: 'Bill deleted successfully'
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Error deleting bill',
+      error: error.message
+    });
+  }
+};

@@ -124,4 +124,39 @@ router.get('/get-bills', verifyToken, billController.getBills);
  */
 router.get('/:billId', verifyToken, billController.getBillById);
 
+/**
+ * @swagger
+ * /bill/delete/{deleteId}:
+ *   delete:
+ *     summary: Delete a bill by ID
+ *     tags: [Bills]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: deleteId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Bill ID to delete
+ *     responses:
+ *       200:
+ *         description: Bill deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Bill deleted successfully"
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ *       404:
+ *         description: Bill not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/delete/:deleteId', verifyToken, billController.deleteBill);
+
 module.exports = router;
