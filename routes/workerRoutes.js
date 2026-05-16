@@ -1,5 +1,5 @@
 const express = require('express');
-const { addWorkers, editWorker } = require('../controllers/workerController');
+const { addWorkers, editWorker, deleteWorker } = require('../controllers/workerController');
 const verifyToken = require('../middleware/authMiddleware');
 
 const router = express.Router();
@@ -109,5 +109,44 @@ router.post('/add', verifyToken, addWorkers);
  *         description: Server error
  */
 router.put('/edit/:workerId', verifyToken, editWorker);
+
+/**
+ * @swagger
+ * /worker/delete/{workerId}:
+ *   delete:
+ *     summary: Delete a specific worker
+ *     tags: [Workers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: workerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Worker ID to delete
+ *     responses:
+ *       200:
+ *         description: Worker deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Worker deleted successfully"
+ *                 deletedWorker:
+ *                   $ref: '#/components/schemas/Worker'
+ *       400:
+ *         description: Worker ID is required
+ *       403:
+ *         description: Unauthorized to delete this worker
+ *       404:
+ *         description: Worker not found
+ *       500:
+ *         description: Server error
+ */
+router.delete('/delete/:workerId', verifyToken, deleteWorker);
 
 module.exports = router;

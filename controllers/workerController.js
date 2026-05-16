@@ -135,3 +135,46 @@ exports.editWorker = async (req, res) => {
         });
     }
 };
+
+exports.deleteWorker = async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { workerId } = req.params;
+
+        // 🔍 Step 1: Validate workerId
+        if (!workerId) {
+            return res.status(400).json({
+                message: 'Worker ID is required'
+            });
+        }
+
+        // 🔍 Step 2: Check if worker exists and belongs to the user
+        const worker = await Worker.findById(workerId);
+
+        if (!worker) {
+            return res.status(404).json({
+                message: 'Worker not found'
+            });
+        }
+
+        if (worker.userId.toString() !== userId) {
+            return res.status(403).json({
+                message: 'Unauthorized to delete this worker'
+            });
+        }
+
+        // ✅ Step 3: Delete the worker
+        await Worker.findByIdAndDelete(workerId);
+
+        return res.status(200).json({
+            message: 'Worker deleted successfully',
+            deletedWorker: worker
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            message: 'Server error',
+            error: error.message
+        });
+    }
+};
