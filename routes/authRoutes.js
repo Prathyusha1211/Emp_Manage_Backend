@@ -83,6 +83,15 @@ router.post('/register', register);
  *                 token:
  *                   type: string
  *                   description: JWT token
+ *                user:
+ *                  type: object
+ *                 properties:
+ *                  mobile:
+ *                    type: string
+ *                   example: "9876543210"
+ *                 fullName:
+ *                   type: string
+ *                  example: "John Doe"
  *       401:
  *         description: Invalid credentials
  *       500:
